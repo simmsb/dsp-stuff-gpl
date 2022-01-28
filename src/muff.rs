@@ -794,7 +794,7 @@ fn oversample_2x(in_: &[f32], out: &mut [f32], prev: f32) {
 fn oversample_4x(in_: &[f32], out: &mut [f32], prev: f32) {
     let interp = Linear::new(prev, in_[0]);
 
-    dasp_signal::from_iter(in_[2..].iter().copied())
+    dasp_signal::from_iter(in_[1..].iter().copied())
         .scale_hz(interp, 0.25)
         .take(out.len())
         .collect_slice_checked(out);
