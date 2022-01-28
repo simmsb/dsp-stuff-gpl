@@ -756,6 +756,7 @@ pub fn perform(
     u_2x.copy_from_slice(&y_2x);
 
     let sustain_media_1 = state.sustain_media_1;
+
     filter_3(
         &u_2x,
         &mut y_2x,
@@ -787,7 +788,7 @@ fn oversample_2x(in_: &[f32], out: &mut [f32], prev: f32) {
     dasp_signal::from_iter(in_[1..].iter().copied())
         .scale_hz(interp, 0.5)
         .take(out.len())
-        .collect_slice(out);
+        .collect_slice_checked(out);
 }
 
 fn oversample_4x(in_: &[f32], out: &mut [f32], prev: f32) {
@@ -796,7 +797,7 @@ fn oversample_4x(in_: &[f32], out: &mut [f32], prev: f32) {
     dasp_signal::from_iter(in_[2..].iter().copied())
         .scale_hz(interp, 0.25)
         .take(out.len())
-        .collect_slice(out);
+        .collect_slice_checked(out);
 }
 
 fn downsample_8x(in_: &[f32], out: &mut [f32]) {
@@ -806,7 +807,7 @@ fn downsample_8x(in_: &[f32], out: &mut [f32]) {
     dasp_signal::from_iter(in_[2..].iter().copied())
         .scale_hz(interp, 8.0)
         .take(out.len())
-        .collect_slice(out);
+        .collect_slice_checked(out);
 }
 
 pub fn filter_1(
@@ -834,7 +835,7 @@ pub fn filter_1(
         .scanl(state.filter_1_prev_y, |y, (u1, u2)| {
             (-a1 * y + b0 * u2 + b1 * u1) / a0
         })
-        .collect_slice(&mut temp_out);
+        .collect_slice_checked(&mut temp_out);
 
     y.copy_from_slice(&temp_out);
 
@@ -859,8 +860,12 @@ pub fn filter_2(
 
     let c = 2.0 / t;
 
+    let b0 = 1.0;
     let b1 = c5 * (r7 + r8);
+    let b2 = 0.0;
+    let b3 = 0.0;
 
+    let a0 = 1.0;
     let a1 = c4 * (r5 + r6) + c5 * r7;
     let a2 = c4 * c5 * (r5 + r6) * r7 + c3 * r5 * (c4 * r6 - c5 * r8);
     let a3 = c3 * c4 * c5 * r5 * r6 * r7;
@@ -868,15 +873,14 @@ pub fn filter_2(
     let c2 = c.powi(2);
     let c3 = c.powi(3);
 
-    let b_0 = -1.0 - b1 * c;
-    let b_1 = -3.0 - b1 * c;
-    let b_2 = -3.0 + b1 * c;
-    let b_3 = -1.0 + b1 * c;
-
-    let a_0 = -1.0 - a1 * c - a2 * c2 - a3 * c3;
-    let a_1 = -3.0 - a1 * c + a2 * c2 + 3.0 * a3 * c3;
-    let a_2 = -3.0 + a1 * c + a2 * c2 - 3.0 * a3 * c3;
-    let a_3 = -1.0 + a1 * c - a2 * c2 + a3 * c3;
+    let b_0 = -b0 - b1 * c - b2 * c2 - b3 * c3;
+    let b_1 = -3.0 * b0 - b1 * c + b2 * c2 + 3.0 * b3 * c3;
+    let b_2 = -3.0 * b0 + b1 * c + b2 * c2 - 3.0 * b3 * c3;
+    let b_3 = -b0 + b1 * c - b2 * c2 + b3 * c3;
+    let a_0 = -a0 - a1 * c - a2 * c2 - a3 * c3;
+    let a_1 = -3.0 * a0 - a1 * c + a2 * c2 + 3.0 * a3 * c3;
+    let a_2 = -3.0 * a0 + a1 * c + a2 * c2 - 3.0 * a3 * c3;
+    let a_3 = -a0 + a1 * c - a2 * c2 + a3 * c3;
 
     let mut temp_out = [0f32; BUFFER_SIZE * 2];
 
@@ -885,7 +889,7 @@ pub fn filter_2(
         .scanln(state.filter_2_prev_y, |[y1, y2, y3], (u1, u2, u3, u4)| {
             (-a_1 * y3 - a_2 * y2 - a_3 * y1 + b_0 * u4 + b_1 * u3 + b_2 * u2 + b_3 * u1) / a_0
         })
-        .collect_slice(&mut temp_out);
+        .collect_slice_checked(&mut temp_out);
 
     y.copy_from_slice(&temp_out);
     state
@@ -943,7 +947,7 @@ pub fn filter_3(
 
             (-a_1 * y2 - a_2 * y1 + b_0 * u3 + b_1 * u2 + b_2 * u1) / a_0
         })
-        .collect_slice(&mut temp_out);
+        .collect_slice_checked(&mut temp_out);
 
     y.copy_from_slice(&temp_out);
     state
@@ -1049,7 +1053,7 @@ pub fn filter_4(
         .scanln(state.filter_4_prev_y, |[y1, y2, y3], (u1, u2, u3, u4)| {
             (-a_1 * y3 - a_2 * y2 - a_3 * y1 + b_0 * u4 + b_1 * u3 + b_2 * u2 + b_3 * u1) / a_0
         })
-        .collect_slice(&mut temp_out);
+        .collect_slice_checked(&mut temp_out);
 
     y.copy_from_slice(&temp_out);
     state.filter_4_prev_u.copy_from_slice(&u[BUFFER_SIZE - 3..]);
@@ -1110,7 +1114,7 @@ pub fn clip(
 
             y - b / d
         })
-        .collect_slice(&mut temp_out);
+        .collect_slice_checked(&mut temp_out);
 
     y.copy_from_slice(&temp_out);
 
